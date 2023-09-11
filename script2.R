@@ -36,7 +36,8 @@ calculo_metricas <- function(predict, holdout){
 
 
 # estimativa da densidade de kernel
-kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + geom_violin() +
+kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + 
+  geom_violin() +
   labs(x = 'Número Atômico', y = 'Bandgap Direto', fill = 'Fase') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),

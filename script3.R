@@ -4,7 +4,7 @@
 pacotes <- c('corrplot', 'caret', 'Hmisc','pROC', "tidyverse", 'gbm',
              'randomForest', "kableExtra", 'rpart', "rpart.plot", 'class',
              'naivebayes', 'gtools', 'corrgram','diffdf', 'MLmetrics', 
-             'xgboost', 'plyr','scales', 'ggplot2')
+             'xgboost', 'plyr','scales', 'ggplot2', "patchwork")
 
 options(rgl.debug = TRUE)
 
@@ -116,27 +116,16 @@ data <- as.data.frame(data)
 
 # adicionar vbm e cbm para cada e tmd
 
-data <- data %>% left_join(df4 %>% select(vbm,id), by = join_by(V1 == id)) %>% 
-  rename(vbma = vbm)
-data <- data %>% left_join(df4 %>% select(vbm,id), by = join_by(V2 == id)) %>% 
-  rename(vbmb = vbm)
-data <- data %>% left_join(df4 %>% select(cbm,id), by = join_by(V1 == id)) %>% 
-  rename(cbma = cbm)
-data <- data %>% left_join(df4 %>% select(cbm,id), by = join_by(V2 == id)) %>% 
-  rename(cbmb = cbm)
-data <- data %>% left_join(df4 %>% select(id,name), by = join_by(V1 == id))
-data <- data %>% rename(V1_name = 'name')
-data <- data %>% left_join(df4 %>% select(id,name), by = join_by(V2 == id)) %>%
-  rename(V2_name = 'name')
-data <- data %>% left_join(df4 %>% select(id,TM_AN), by = join_by(V1 == id)) %>%
-  rename(TM_AN_V1 = 'TM_AN')
-data <- data %>% left_join(df4 %>% select(id,TM_AN), by = join_by(V2 == id)) %>%
-  rename(TM_AN_V2 = 'TM_AN')
-data <- data %>% left_join(df4 %>% select(id,C_AN), by = join_by(V1 == id)) %>%
-  rename(C_AN_V1 = 'C_AN')
-data <- data %>% left_join(df4 %>% select(id,C_AN), by = join_by(V2 == id)) %>%
-  rename(C_AN_V2 = 'C_AN')
-
+data <- data %>% left_join(df4 %>% select(vbm,id), by = join_by(V1 == id)) %>% dplyr::rename(vbma = vbm)
+data <- data %>% left_join(df4 %>% select(vbm,id), by = join_by(V2 == id)) %>% dplyr::rename(vbmb = vbm)
+data <- data %>% left_join(df4 %>% select(cbm,id), by = join_by(V1 == id)) %>% dplyr::rename(cbma = cbm)
+data <- data %>% left_join(df4 %>% select(cbm,id), by = join_by(V2 == id)) %>% dplyr::rename(cbmb = cbm)
+data <- data %>% left_join(df4 %>% select(id,name), by = join_by(V1 == id)) %>% dplyr::rename(V1_name = 'name')
+data <- data %>% left_join(df4 %>% select(id,name), by = join_by(V2 == id)) %>% dplyr::rename(V2_name = 'name')
+data <- data %>% left_join(df4 %>% select(id,TM_AN), by = join_by(V1 == id)) %>% dplyr::rename(TM_AN_V1 = 'TM_AN')
+data <- data %>% left_join(df4 %>% select(id,TM_AN), by = join_by(V2 == id)) %>% dplyr::rename(TM_AN_V2 = 'TM_AN')
+data <- data %>% left_join(df4 %>% select(id,C_AN), by = join_by(V1 == id)) %>% dplyr::rename(C_AN_V1 = 'C_AN')
+data <- data %>% left_join(df4 %>% select(id,C_AN), by = join_by(V2 == id)) %>% dplyr::rename(C_AN_V2 = 'C_AN')
 
 tipo <- data.frame()
 for (i in 1:nrow(data)) {
@@ -158,35 +147,59 @@ for (i in 1:nrow(data)) {
   }
 }
 
-data <- cbind(data,tipo) %>% rename('tipo' = X.III.)
+data <- cbind(data,tipo) %>% dplyr::rename('tipo' = X.III.)
 data$tipo <- as.factor(data$tipo)  
 
 data$V1 <- as.character(data$V1)
 data$V2 <- as.character(data$V2)
 
+# análise descritiva do banco de dados
 ggplot(data, aes(V1_name, V2_name, fill= tipo)) + 
   geom_tile() +
   scale_x_discrete(guide = guide_axis(angle = 90))+
   labs(x = 'TMD', y = 'TMD', fill = 'Tipo') 
 
-data %>% select(tipo, C_AN_V1) %>% count(C_AN_V1,tipo)
+data %>% count(C_AN_V1,tipo)
 data %>% select(tipo, TM_AN_V1) %>% count(TM_AN_V1,tipo)
-data %>% count(tipo)
+count(data$tipo)%>% kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = F,
+                font_size = 28)
+count(data$C_AN_V1)
+count(data$TM_AN_V1)
+
+data %>% select(tipo, TM_AN_V1) %>% group_by(tipo) %>% count() %>% kable() %>%
+  kable_styling(bootstrap_options = "striped",
+                full_width = F,
+                font_size = 28)
+
+# gráfico com a distribuição dos tipos de junção para cada metal de transição
+TM_juncao <- data %>% select(tipo, TM_AN_V1) %>%
+  ggplot(aes(x = TM_AN_V1, group = tipo, fill = tipo)) + 
+  geom_bar()+
+  xlab('Metal de Transição') +
+  ylab('Frequência')
 
 # gráfico com a distribuição dos tipos de junção para cada calcogênio
-ggplot(data, aes(x=C_AN_V1,fill=tipo)) + 
-geom_bar(position="stack") +
-labs(x = 'Bandgap Direto', y = 'Contagem', fill = 'Tipo') +
-theme(panel.background = element_rect("white"),
-      panel.grid = element_line("grey95"),
-      panel.border = element_rect(NA))
+C_juncao <- data %>% select(tipo, C_AN_V1) %>%
+  ggplot(aes(x = C_AN_V1,group = tipo, fill = tipo)) + 
+  geom_bar()+
+  xlab('Calcogênio') +
+  ylab('Frequência')
+
+TM_juncao + C_juncao + plot_layout(guides = "collect")
+
+# gráfico com a distribuição dos tipos de junção para cada calcogênio
+#ggplot(data, aes(x=C_AN_V1,fill=tipo)) + 
+#geom_bar(position="stack") +
+#labs(x = 'Bandgap Direto', y = 'Contagem', fill = 'Tipo') +
+#theme(panel.background = element_rect("white"),
+#      panel.grid = element_line("grey95"),
+#      panel.border = element_rect(NA))
 
 #-------------------------------------------------------------------------------
 # Contruir um novo banco de dados com metade das observações do banco anterior
 #-------------------------------------------------------------------------------
-
-# retirar as colunas que não ser usadas
-data <- data %>% select(-c(V1,V2, V1_name, V2_name))
 
 df <- combinations(38,2,df4[,1])
 df <- as.data.frame(df)
@@ -194,7 +207,13 @@ df <- as.data.frame(df)
 df$V1 <- as.character(df$V1)
 df$V2 <- as.character(df$V2)
 
-df <- df %>% left_join(data)%>% select(-c(V1,V2, V1_name, V2_name))
+df<- df %>% left_join(data) %>% select(-c(V1,V2, V1_name, V2_name))
+
+# salvar o banco de dados
+save(df, file = 'df.Rda')
+
+# carregar o banco de dados
+load('df.Rda')
 
 #-------------------------------------------------------------------------------
 # Análise de classificação
@@ -296,11 +315,6 @@ tree.metricas <- tree.metricas %>%  add_row(row_names = 'ROC', tree = tree.roc$a
 #--------------------------------------------------------------------------
 #                               random forest
 #--------------------------------------------------------------------------
-
-control <- trainControl(method='repeatedcv', 
-                        number=10, 
-                        repeats=3)
-
 fitControl <- caret::trainControl(## 10-fold CV
   method = "repeatedcv",
   number = 10,
@@ -438,7 +452,6 @@ varImp(boost.training, scale = F) %>% plot()
 # predição
 boost.pred <- predict(boost.training,holdout)
 print(boost.pred)
-
 
 # comparação entre os dados e a predição
 result = data.frame(holdout$dir_gap2, boost.pred)
@@ -691,7 +704,7 @@ avaliacao %>% gather(key = Accuracy, value = Value, tree:nv) %>%
   geom_col(position = "dodge") +
   scale_y_continuous(labels = scales::number_format(accuracy = 0.01))
 
-# random forest apresentou melhor acurrácia para a classificação das junções 
+# random forest apresentou melhor acurácia para a classificação das junções 
 # formadas por heteroestruturas de TMD
 
 #-------------------------------------------------------------------------------
@@ -699,33 +712,56 @@ avaliacao %>% gather(key = Accuracy, value = Value, tree:nv) %>%
 # aplicação de métodos de machine learning para predizer o tipo de junção
 #-------------------------------------------------------------------------------
 # Modelos escolhidos:
-# Modelo Linear por Míminos Quadrados (OLS), Mínimo Quadro Parcial (PLS), 
+# Modelo Linear por Míminos Quadrados (OLS), Mínimo Quadrado Parcial (PLS), 
 # o Operador de Encolhimento em Seleção do Menor Absoluto (LASSO), 
 # Gradient Boosting Regression (GBR), Gaussian Process Regression (GPR) e 
 # Random Forest Regression (RFR).
 
+# como não há heteroestruturas de tmds o suficiente para fazer um banco de dados 
+# o bandgap será calculado de acordo com o modelo de anderson
 
-#-------------------------------------------------------------------------------
-#    Modelo logístico
-#-------------------------------------------------------------------------------
-?map
-modelo_logistico <- glm(formula = atrasado ~ dist + sem, 
-                      data = Atrasado, 
-                      family = "binomial")
+df <-df %>% mutate(bandgap = case_when((as.numeric(tipo) == 2 & cbma > cbmb) ~ (cbmb - vbma),
+                                       (as.numeric(tipo) == 2 & cbma < cbmb) ~ (cbma - vbmb),
+                                       (as.numeric(tipo) == 1 & (vbma - cbma > vbmb - cbmb)) ~ (vbmb - cbmb),
+                                       (as.numeric(tipo) == 1 & (vbma - cbma < vbmb - cbmb)) ~ (vbma - cbma),
+                                       as.numeric(tipo) == 3 ~ 0)) 
 
-
-df_regressao <- df %>% filter(as.numeric(tipo) == 1) %>% 
-  mutate(bandgap = purrr::pmap(list(vbma - cbma, vbmb- cbmb), min))
+df$bandgap <- abs(df$bandgap)
 
 
+summary(df)
 
-  
+# gráfico de dispersão
+ggplot(df, aes(x = TM_AN_V1, y = bandgap)) +
+  geom_boxplot(color = "#39568CFF", size = 1) +
+  labs(x = "Metal de Transição",
+       y = "Bandgap") +
+  scale_color_manual("Legenda:",
+                     values = "grey50") +
+  theme_classic()
+
+ggplot(df, aes(x = C_AN_V1, y = bandgap)) +
+  geom_boxplot(color = "#39568CFF", size = 1) +
+  labs(x = "Calcogênio",
+       y = "Bandgapo") +
+  scale_color_manual("Legenda:",
+                     values = "grey50") +
+  theme_classic()
+
+ggplot(df, aes(x = tipo, y = bandgap)) +
+  geom_boxplot(color = "#39568CFF", size = 1) +
+  labs(x = "Tipo",
+       y = "Bandgap") +
+  scale_color_manual("Legenda:",
+                     values = "grey50") +
+  theme_classic()
 
 
-df %>% mutate(bandgap = case_when((as.numeric(tipo) == 2 & cbma > cbmb) ~ cbmb - vbma,
-                                  (as.numeric(tipo) == 2 & cbma < cbmb) ~ cbma - vbmb,
-                                  (as.numeric(tipo) == 1 & (vbma - cbma > vbmb- cbmb)) ~ vbmb- cbmb,
-                                  (as.numeric(tipo) == 1 & (vbma - cbma < vbmb- cbmb)) ~ vbma - cbma))
+
+
+
+
+
 
 
 
