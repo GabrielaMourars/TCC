@@ -1,0 +1,61 @@
+
+
+---
+title: "Resumo do trabalho"
+
+output: html_document
+---
+```{r include=FALSE}
+#pacotes utilizados
+
+pacotes <- c("tidyverse", "kableExtra")
+
+options(rgl.debug = TRUE)
+
+if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
+  instalador <- pacotes[!pacotes %in% installed.packages()]
+  for(i in 1:length(instalador)) {
+    install.packages(instalador, dependencies = T)
+    break()}
+  sapply(pacotes, require, character = T) 
+} else {
+  sapply(pacotes, require, character = T) 
+}
+```
+
+```{r include=FALSE}
+load('df.Rda')
+load('df1.Rda')
+load('df2.Rda')
+load('df3.Rda')
+load('df4.Rda')
+```
+
+# 
+
+* c2dm.db: banco de dados obtido em Computational 2D Materials Database (C2DB)
+
+## Script.R
+Data wargling para colocar as informações do arquivo c2dm.db em um formato de banco de dados. Além da informações do arquivo, algumas informações atômicas foram obtidas a partir do pacote PeriodicTable. Outras informações foram obtida a partir dos links abaixo.
+
+* peso atômico: https://www.degruyter.com/document/doi/10.1515/pac-2019-0603/html
+* raio atômico: https://www.chemeurope.com/en/encyclopedia/Atomic_radii_of_the_elements_%28data_page%29.html
+* temperatura de fusão: https://www.schoolmykids.com/learn/periodic-table/heat-of-fusion-of-all-the-elements
+
+Todos estes dados se encontram no bando de dados df1
+
+df2 apresenta os dados refentes somente aos TMDs.
+
+```{r echo=FALSE}
+# tabela resumo de algumas estatísticas descritivas de acordo com cada calcogênio
+df2 %>% select(C_AN,phase,dir_gap) %>% 
+  group_by(C_AN) %>% rename('Calcogênio' = C_AN) %>% 
+  summarise(N = n(),Min = round(min(dir_gap),3), Máx = max(dir_gap),Média = mean(dir_gap), 
+            DP = sd(dir_gap)) %>% kable(caption = 'análise descritiva') %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12)
+```
+
+
+## Script 2: classificação dos TMDs
+
+Neste script os TMDs são classificados em semimetal (0) e semicondutor (1)
