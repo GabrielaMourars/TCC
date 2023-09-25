@@ -223,8 +223,6 @@ df2 <- df2 %>% mutate_at(c('phase', 'C_AN', 'TM_AN', 'C_PN', 'TM_PN', 'TM_GN'),
 
 summary(df2)
 
-save(df2, file = 'df2.Rda')
-load('df2.Rda')
 
 # tabela resumo de algumas estatísticas descritivas de acordo com cada calcogênio
 df2 %>% select(C_AN,phase,dir_gap) %>% 

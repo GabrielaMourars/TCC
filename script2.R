@@ -34,6 +34,7 @@ calculo_metricas <- function(predict, holdout){
   return(df)
 }
 
+load('df2.Rda')
 
 # estimativa da densidade de kernel
 kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + 
@@ -137,19 +138,120 @@ ggplot(df2, aes(x=dir_gap2,fill=C_AN)) +
         panel.grid = element_line("grey95"),
         panel.border = element_rect(NA))
 
-ggplot(df2, aes(x=dir_gap, y = hform, color=phase)) + 
-  geom_point() +
-  labs(x = 'Bandgap Direto', y = 'Energia de Formação', fill = 'Fase') +
+# densidade
+# rede
+ggplot(df2, aes(x=a, fill = dir_gap2)) + 
+  geom_density(adjust=1.5, alpha=.4) +
+  labs(x = 'Rede',y = "Densidade", fill = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+# magmom
+ggplot(df2, aes(x=magmom, fill = dir_gap2)) + 
+  geom_density(adjust=1.5, alpha=.4) +
+  labs(x = 'Momento Magnético', y = "Densidade",fill = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+# hform
+ggplot(df2, aes(x=hform, fill = dir_gap2)) + 
+  geom_density(adjust=1.5, alpha=.4) +
+  labs(x = 'Energia de Formação', y = "Densidade",fill = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+# massa
+ggplot(df2, aes(x=mass, fill = dir_gap2)) + 
+  geom_density(adjust=1.5, alpha=.4) +
+  labs(x = 'Massa', y = "Densidade",fill = 'Bandgap') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
         panel.border = element_rect(NA))
 
-ggplot(df2, aes(x=dir_gap, y = a, color=phase)) + 
+# disperção de pontos
+# rede x hform
+ggplot(df2, aes(x=a, y = hform, color = dir_gap2)) + 
   geom_point() +
-  labs(x = 'Bandgap Direto', y = 'Energia de Formação', fill = 'Fase') +
+  labs(x = 'Tamanho da Rede', y = 'Energia de Formação', color = 'Bandgap') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
         panel.border = element_rect(NA))
+
+# rede x massa
+ggplot(df2, aes(x=a, y = mass, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Tamanho da Rede', y = 'Massa', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+# rede x magmom
+ggplot(df2, aes(x=a, y = magmom, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Tamanho da Rede', y = 'Momento Magnético', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+# massa x magmom
+ggplot(df2, aes(x=mass, y = magmom, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Massa', y = 'Momento Magnético', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+#massa x hform
+ggplot(df2, aes(x=mass, y = hform, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Massa', y = 'Energia de Formação', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+# magmom x hform
+ggplot(df2, aes(x=magmom, y = hform, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Momento Magnético', y = 'Energia de Formação', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+# histograma
+ggplot(df2, aes(y = phase)) +
+  geom_boxplot(aes(x = magmom, fill = dir_gap2))
+ggplot(df2, aes(y = phase)) +
+  geom_boxplot(aes(x = mass, fill = dir_gap2)) 
+ggplot(df2, aes(y = phase)) +
+  geom_boxplot(aes(x = hform, fill = dir_gap2)) 
+ggplot(df2, aes(y = phase)) +
+  geom_boxplot(aes(x = a, fill = dir_gap2))
+
+ggplot(df2, aes(x=magmom, y = phase, color = dir_gap2)) + 
+  geom_point() +
+  labs(x = 'Momento Magnético', y = 'Fase', color = 'Bandgap') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA))
+
+# bandgap x magmom
+ggplot(df2, aes(x = dir_gap, y = magmom, color = TM_GN)) +
+  geom_point()
+
+# bandgap x massa
+ggplot(df2, aes(x = dir_gap, y = mass, color = TM_GN)) +
+  geom_point()
+
+# bandgap x hform
+ggplot(df2, aes(x = dir_gap, y = hform, color = TM_GN)) +
+  geom_point()
+
+# bandgap x fase
+ggplot(df2, aes(y = dir_gap, x = a, color = TM_GN))+
+  geom_point()
+
+save(df2, file = 'df2.Rda')
+load('df2.Rda')
 
 # separar as variáveis que vão ser usadas para a análise
 df3 <- df2 %>% select(magmom,hform, phase, C_AW,C_AD,TM_AR,C_AR,C_VDW,TM_AV,C_AV,C_COV,
@@ -230,10 +332,6 @@ tree.pred = predict(tree.training, holdout, type = 'raw')
 
 # comparação entre os dados e a predição
 result = data.frame(holdout$dir_gap2, tree.pred)
-print(result)
-
-# comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, rf.pred)
 print(result)
 
 tree.metricas <- calculo_metricas(tree.pred,holdout$dir_gap2) %>% 
@@ -621,20 +719,36 @@ tabela <- purrr::reduce(list(rf.metricas,knn.metricas, boost.metricas,
                         kable_classic_2(full_width = F)
 tabela
 
-tabela_2 <- data.frame(training = c(knn.training$results[whichTwoPct,1:6][1,'ROC'],
+tabela_2 <- data.frame(Treino = c(knn.training$results[whichTwoPct,1:6][1,'ROC'],
                                     rf.training$results[whichTwoPct,1:6][1,'ROC'],
                                     boost.training$results[whichTwoPct,1:6][1,'ROC'],
                                     tree.training$results[whichTwoPct,1:6][1,'ROC'],
                                     nv.training$results[whichTwoPct,1:6][1,'ROC']),
-                       holdout = c(knn.roc$auc, rf.roc$auc, boost.roc$auc, 
+                       Teste = c(knn.roc$auc, rf.roc$auc, boost.roc$auc, 
                                    tree.roc$auc, nv.roc$auc), 
-                       row.names = c('knn', 'rf', 'boost', 'tree', 'nv')) %>% 
+                       Modelos = c('K-NN', 'RF', 'GBM', 'Tree', 'NV')) %>% 
   kable(caption = 'Curva ROC', digits = 3) %>% 
   kable_classic_2(full_width = F)
 tabela_2
 
+data.frame(Treino = c(knn.training$results[whichTwoPct,1:6][1,'ROC'],
+                                  rf.training$results[whichTwoPct,1:6][1,'ROC'],
+                                  boost.training$results[whichTwoPct,1:6][1,'ROC'],
+                                  tree.training$results[whichTwoPct,1:6][1,'ROC'],
+                                  nv.training$results[whichTwoPct,1:6][1,'ROC']),
+                       Teste = c(knn.roc$auc, rf.roc$auc, boost.roc$auc, 
+                                 tree.roc$auc, nv.roc$auc), 
+                       Modelos = c('K-NN', 'RF', 'GBM', 'Tree', 'NV')) %>%
+  gather(key = 'ROC', value = 'Valor', - Modelos) %>% 
+  ggplot(aes(x = ROC,y = Valor, fill = Modelos)) + 
+  geom_col(position = "dodge") +
+  labs(title = "Resultados Curva ROC") +
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01))+
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA)) %>% 
+  png(file="C:/Users/Gabriela/Desktop/MBA - USP/TCC/Banco de dados/roctotal.png",
+                                                 width=600 , height=350, units = "px")
+dev.off()
 
-  
-
-
-
+?png
