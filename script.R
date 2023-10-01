@@ -5,7 +5,8 @@
 #pacotes utilizados
 
 pacotes <- c('DBI', "tidyverse", "rvest", 'PeriodicTable', 'jtools', 
-             "kableExtra", 'RSQLite')
+             "kableExtra", 'RSQLite', "magick", "webshot", 'ggplot2',
+             'gridExtra', 'ggpmisc', 'cowplot', 'gtable')
 
 options(rgl.debug = TRUE)
 
@@ -198,17 +199,6 @@ load('df1.Rda')
 # análise do banco de dados inicial
 colnames(df1)[1]
 
-tb <- sub(".*_", "",colnames(df1)) %>% as.data.frame() %>% unique() %>% 
-  mutate(Nome = c('id', 'Momento Magnético', 'Massa', 
-                  'Energia de Formação', 'Bandgap Direto', 'Fase', 
-                  'Constante de Rede', 'Número Atômico',
-                  'Peso Atômico', 'Número do Grupo', 'Número do Período',
-                  'Densidade Atômica', 'Raio Atômico', 'Raio de van der Waals',
-                  'Volume Atômico', 'Raio Covalente', 'Temperatura de Fusão', 
-                  'Calor Específico', 'Ponto de Fusão','Ponto de Ebulição',
-                  'Primeira Energia de Ionização', 'Eletronegatividade'))  %>% 
-  kable(caption = 'Nome das coisas', digits = 3) %>% 
-  kable_classic_2(full_width = F)
 
 # database final com os parametros importantes
 # C_GN tem só um valor, ao calcular a correlação o desvio padrão é zero
@@ -223,13 +213,79 @@ df2 <- df2 %>% mutate_at(c('phase', 'C_AN', 'TM_AN', 'C_PN', 'TM_PN', 'TM_GN'),
 
 summary(df2)
 
+#-------------------------------------------------------------------------------
+# análise descritiva do banco de dados
+#-------------------------------------------------------------------------------
 
 # tabela resumo de algumas estatísticas descritivas de acordo com cada calcogênio
-df2 %>% select(C_AN,phase,dir_gap) %>% 
-  group_by(C_AN) %>% rename('Calcogênio' = C_AN) %>% 
-  summarise(N = n(),Min = round(min(dir_gap),3), Máx = max(dir_gap),Média = mean(dir_gap), 
-            DP = sd(dir_gap)) %>% kable(caption = 'análise descritiva') %>% 
-  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 12)
+tb2 <- df2 %>% select(C_AN,phase,dir_gap) %>% 
+  group_by(C_AN) %>% dplyr::rename('Calcogênio' = C_AN) %>% 
+  dplyr::summarise(N = n(),Min = round(min(dir_gap),3), Máx = max(dir_gap),Média = mean(dir_gap), 
+            DP = sd(dir_gap)) %>% kable() %>% kable_classic_2(full_width = F)
+
+df2 %>% select(TM_AN,phase,dir_gap) %>% 
+  group_by(TM_AN) %>% dplyr::rename('Calcogênio' = TM_AN) %>% 
+  dplyr::summarise(N = n(),Min = round(min(dir_gap),3), Máx = max(dir_gap),Média = mean(dir_gap), 
+            DP = sd(dir_gap)) %>% kable() %>% kable_classic_2(full_width = F)
 
 # lista de todas as variáveis no banco de dados final
 ls(df2)
+
+# theme da tabela
+tb <- sub(".*_", "",colnames(df2)) %>% as.data.frame(sigla = c()) %>% unique() %>% 
+  mutate(Descrição = c('Momento Magnético', 'Massa', 
+                       'Energia de Formação', 'Bandgap Direto', 'Fase', 
+                       'Constante de Rede', 'Número Atômico',
+                       'Peso Atômico', 'Número do Grupo', 'Número do Período',
+                       'Densidade Atômica', 'Raio Atômico', 'Raio de van der Waals',
+                       'Volume Atômico', 'Raio Covalente', 'Temperatura de Fusão', 
+                       'Calor Específico', 'Ponto de Fusão','Ponto de Ebulição',
+                       'Primeira Energia de Ionização', 'Eletronegatividade'))  %>% 
+  tableGrob(rows = NULL, theme = ttheme_minimal(base_size = 11))
+
+#kable(row.names = F) %>% kable_classic_2(full_width = F) 
+
+# estimativa da densidade de kernel
+kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + 
+  geom_violin() +
+  labs(x = 'Número Atômico', y = 'Bandgap Direto (eV)', fill = 'Fase') +
+  theme(#text = element_text(size = 12),
+        panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA),
+        legend.position="none")
+
+# histograma com a distribuição dos tmds pelo bandgap
+# a grande maioria dos tmds possui bandgap nulo nesta base
+hist <- ggplot(df2, aes(x = dir_gap, fill = phase )) + 
+  geom_histogram(position = "dodge") +
+  labs(x = 'Bandgap Direto (eV)', y = 'Contagem', fill = 'Fase') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA),
+        legend.position="none")
+
+# magmom x dir_gap 
+# o momento margético parece ser um fator importante para separar 
+# os tmds de acordo com o bandgap, independente o metal de transição
+md <- ggplot(df2, aes(x=magmom, y = dir_gap, color = TM_GN, shape = phase)) + 
+  geom_point() +
+  labs(x = 'Momento Magnético', y = 'Bandgap (eV)', color = 'TM_GN', 
+       shape = 'Fase') +
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA),
+        legend.position="none")
+
+legend <- get_legend(hist + theme(legend.position = "left"))
+
+p <- plot_grid(hist, kernel, legend, rel_widths = c(0.8,0.8,0.3),
+          nrow = 1, labels = c('a', 'b'))
+p2 <- plot_grid(p, md, ncol = 1, labels =  c('','c'))
+
+png(file="C:/Users/Gabriela/Desktop/MBA - USP/TCC/Banco de dados/banco_de_dados.png",
+    width=800 , height=450, units = "px")
+grid.arrange(arrangeGrob(tb, p2, ncol = 2, widths=c(0.8,2.2)))
+dev.off()
+
+
