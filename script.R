@@ -6,7 +6,8 @@
 
 pacotes <- c('DBI', "tidyverse", "rvest", 'PeriodicTable', 'jtools', 
              "kableExtra", 'RSQLite', "magick", "webshot", 'ggplot2',
-             'gridExtra', 'ggpmisc', 'cowplot', 'gtable')
+             'gridExtra', 'ggpmisc', 'cowplot', 'grid', 'correlation',
+             'stats')
 
 options(rgl.debug = TRUE)
 
@@ -211,14 +212,18 @@ df2 <- df2 %>% mutate_at(c('TM_FH', 'TM_AR', 'C_AR'), as.numeric)
 df2 <- df2 %>% mutate_at(c('phase', 'C_AN', 'TM_AN', 'C_PN', 'TM_PN', 'TM_GN'),
                          as.factor)
 
-summary(df2)
+# coluna com a classificação dos bandgaps em nulo (0) e não nulo (1)
+df2 <- df2 %>% mutate(dir_gap2 = ifelse(dir_gap != 0, 1,0))
+df2$dir_gap2 <- as.factor(df2$dir_gap2)
 
+# salvar o banco de dados
+save(df2, file = 'df2.Rda')
 #-------------------------------------------------------------------------------
 # análise descritiva do banco de dados
 #-------------------------------------------------------------------------------
 
 # tabela resumo de algumas estatísticas descritivas de acordo com cada calcogênio
-tb2 <- df2 %>% select(C_AN,phase,dir_gap) %>% 
+df2 %>% select(C_AN,phase,dir_gap) %>% 
   group_by(C_AN) %>% dplyr::rename('Calcogênio' = C_AN) %>% 
   dplyr::summarise(N = n(),Min = round(min(dir_gap),3), Máx = max(dir_gap),Média = mean(dir_gap), 
             DP = sd(dir_gap)) %>% kable() %>% kable_classic_2(full_width = F)
@@ -231,61 +236,111 @@ df2 %>% select(TM_AN,phase,dir_gap) %>%
 # lista de todas as variáveis no banco de dados final
 ls(df2)
 
-# theme da tabela
-tb <- sub(".*_", "",colnames(df2)) %>% as.data.frame(sigla = c()) %>% unique() %>% 
-  mutate(Descrição = c('Momento Magnético', 'Massa', 
-                       'Energia de Formação', 'Bandgap Direto', 'Fase', 
-                       'Constante de Rede', 'Número Atômico',
-                       'Peso Atômico', 'Número do Grupo', 'Número do Período',
-                       'Densidade Atômica', 'Raio Atômico', 'Raio de van der Waals',
-                       'Volume Atômico', 'Raio Covalente', 'Temperatura de Fusão', 
-                       'Calor Específico', 'Ponto de Fusão','Ponto de Ebulição',
-                       'Primeira Energia de Ionização', 'Eletronegatividade'))  %>% 
-  tableGrob(rows = NULL, theme = ttheme_minimal(base_size = 11))
+# correlação:
+# regressão logistica: correlação entre variáveis categóricas e numéricas
+# as variáveis C_AV e TM_AV são linearmente dependentes de AW e AD 
+logistica <- glm(dir_gap2 ~ . - phase -TM_AN - C_AN - TM_GN - TM_PN - C_PN
+                 - C_AR - C_AV - dir_gap - C_MP - C_BP - C_VDW - C_COV - C_FIE
+                 - C_EN, 
+                 data = df2, 
+                 family = "binomial"
+                 #control = list(trace=TRUE)
+                 )
+summary(logistica)
+c('phase', 'TM_AN', 'C_AN', 'TM_GN', 
+  'TM_PN', 'C_PN')
 
-#kable(row.names = F) %>% kable_classic_2(full_width = F) 
+# step-wise do modelo logistico
+logistica_step <- step(object = logistica,
+                        k = qchisq(p = 0.05, df = 1, lower.tail = FALSE))
 
-# estimativa da densidade de kernel
-kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + 
-  geom_violin() +
-  labs(x = 'Número Atômico', y = 'Bandgap Direto (eV)', fill = 'Fase') +
-  theme(#text = element_text(size = 12),
-        panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position="none")
+summary(logistica_step)
+
+# tabela das variáveis com p-valor < 0.05
+logi <- summary(logistica_step)$coefficients %>% as.data.frame()  %>%
+  rownames_to_column(var = 'rowname') %>% .[-1, ] %>% 
+  dplyr::rename('p.valor' = 'Pr(>|z|)',
+                'Variável' = rowname) %>%  filter(p.valor < 0.05) %>% 
+  select('Variável', p.valor) %>% mutate_if(is.numeric, round, digits=5) 
+
+
+# correlação de duas variáveis categóricas: teste do qui-quadrado
+# H0: as duas variáveis não são relacionadas
+# probabilidade de H0 ser verdade
+categoricas <- structure(list(df2$phase, df2$TM_AN, df2$C_AN, df2$TM_GN, df2$TM_PN, 
+               df2$C_PN), .Names = c('phase', 'TM_AN', 'C_AN', 'TM_GN', 
+                                     'TM_PN', 'C_PN'))
+
+# Teste qui-quadrado com valor-p calculado por simulação Monte Carlo
+result = list()
+for(x in 1:length(categoricas)){
+  chisq <- chisq.test(df2$dir_gap2,categoricas[[x]], simulate.p.value = TRUE, B = 200)
+  p_valor <- rep(chisq$p.value,1)
+  result <- result %>% rbind(p_valor)
+}
+
+# p-valor do teste qui-quadrado para cada variável
+qui <- data.frame('Variável' = c('Fase', 'TM_AN', 'C_AN', 'TM_GN', 'TM_PN', 'C_PN'),
+                'p.valor' = c(result[[1]], result[[2]], result[[3]], result[[4]], 
+                              result[[5]], result[[6]]),
+                row.names = c()) %>% filter(p.valor < 0.05) %>% 
+  mutate_if(is.numeric, round, digits=5)
+
+
+tb <- logi %>% rbind(qui) %>% 
+  mutate(Descrição = c('Massa', 'Energia de Formação', 'Peso atômico',
+                       'Peso Atômico', 'Densidade Atômica', 
+                       'Densidade atômica', 'Temperatura de Fusão',
+                       'Calor Específico', 'Ponto de Fusão', 'Ponto de Ebulição', 
+                       'Primeira Energia de Ionização', 'Número Atômico', 
+                       'Número do Grupo'
+                       ))  
+
+  tableGrob(rows = NULL)
+
+
 
 # histograma com a distribuição dos tmds pelo bandgap
 # a grande maioria dos tmds possui bandgap nulo nesta base
-hist <- ggplot(df2, aes(x = dir_gap, fill = phase )) + 
+hist <- ggplot(df2, aes(x = dir_gap , fill = dir_gap2)) + 
   geom_histogram(position = "dodge") +
-  labs(x = 'Bandgap Direto (eV)', y = 'Contagem', fill = 'Fase') +
+  labs(x = 'Bandgap Direto (eV)', y = 'Contagem', fill = 'Bandgap') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA),
-        legend.position="none")
+        panel.border = element_rect(NA)
+        #legend.position="bottom"
+        )
 
-# magmom x dir_gap 
-# o momento margético parece ser um fator importante para separar 
-# os tmds de acordo com o bandgap, independente o metal de transição
-md <- ggplot(df2, aes(x=magmom, y = dir_gap, color = TM_GN, shape = phase)) + 
+# estimativa da densidade de kernel
+kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = C_AN)) + 
+  geom_violin() +
+  labs(x = 'Número Atômico', y = 'Bandgap Direto (eV)') +
+  theme(#text = element_text(size = 12),
+    panel.background = element_rect("white"),
+    panel.grid = element_line("grey95"),
+    panel.border = element_rect(NA),
+    legend.position= 'none')
+
+
+md <- ggplot(df2, aes(y=hform, x = dir_gap, color = TM_GN)) + 
   geom_point() +
-  labs(x = 'Momento Magnético', y = 'Bandgap (eV)', color = 'TM_GN', 
+  labs(y = 'Energia de Formação', x = 'Bandgap (eV)', color = 'TM_GN', 
        shape = 'Fase') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
         panel.border = element_rect(NA),
-        legend.position="none")
+        legend.position= 'bottom',
+        ) + guides(colour = guide_legend(nrow = 1))
 
-legend <- get_legend(hist + theme(legend.position = "left"))
+#legend <- get_legend(hist + theme(legend.position = "left"))
 
-p <- plot_grid(hist, kernel, legend, rel_widths = c(0.8,0.8,0.3),
-          nrow = 1, labels = c('a', 'b'))
-p2 <- plot_grid(p, md, ncol = 1, labels =  c('','c'))
-
-png(file="C:/Users/Gabriela/Desktop/MBA - USP/TCC/Banco de dados/banco_de_dados.png",
-    width=800 , height=450, units = "px")
-grid.arrange(arrangeGrob(tb, p2, ncol = 2, widths=c(0.8,2.2)))
-dev.off()
-
-
+#png(file="C:/Users/Gabriela/Desktop/MBA - USP/TCC/Banco de dados/banco_de_dados.png",
+#    width=1000 , height=720, units = "px")
+grid.arrange(arrangeGrob(tb,left = textGrob("a)", x = unit(1, "npc"), y = unit(.975, "npc"))),
+              arrangeGrob(hist, left = textGrob("b)", x = unit(1, "npc"), y = unit(.95, "npc"))),
+              arrangeGrob(kernel,left = textGrob("c)", x = unit(1, "npc"), y = unit(.95, "npc"))),
+              #arrangeGrob(md,left = textGrob("d)", x = unit(1, "npc"), y = unit(.95, "npc"))),
+              #arrangeGrob(legend), 
+             ncol = 2, 
+              layout_matrix = cbind(c(1,1), c(2,3))
+)
