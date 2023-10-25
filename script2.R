@@ -3,7 +3,7 @@
 #-----------------------------------------------------------------------------
 pacotes <- c('corrplot', 'caret', 'Hmisc','pROC', "tidyverse", 'gbm',
              'randomForest', "kableExtra", 'rpart', "rpart.plot", 'class',
-             'naivebayes')
+             'naivebayes', 'tidyr')
 
 options(rgl.debug = TRUE)
 
@@ -17,13 +17,6 @@ if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
   sapply(pacotes, require, character = T) 
 }
 #-----------------------------------------------------------------------------
-library(PerformanceAnalytics)
-library(see)
-library(ggraph)
-library(psych)
-library(reshape2)
-library("plotly")
-library("knitr")
 
 # função para o cálculo das métricas de performance
 calculo_metricas <- function(predict, holdout){
@@ -36,236 +29,35 @@ calculo_metricas <- function(predict, holdout){
 
 load('df2.Rda')
 
-# estimativa da densidade de kernel
-kernel <- ggplot(df2, aes(x = C_AN, y = dir_gap, fill = phase)) + 
-  geom_violin() +
-  labs(x = 'Número Atômico', y = 'Bandgap Direto', fill = 'Fase') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-kernel
-# para determinar se há algum tipo de associação entre o bandgap e as outras 
-# variáveis do banco de dados será realizado um teste de v de cramer para
-# as variáveis categóricas e a associação por coeficiente de pearson para
-# as variáveis numéricas
-
-# variável preditora: numérica
-# variávels explicativas: numérica (correlação de pearson) categórica ()
-
-#variáveis categóricas
-
-# gráfico de correlação usando todas as variáveis como numéricas
-
-##df2 %>% select(-phase,-C_AN,-TM_AN,-C_PN,-TM_PN,-TM_GN) %>%  cor() %>%
-##  corrplot(method = 'color',order = 'alphabet', tl.cex = 0.5)
-
-# determinar se a correlação é estatisticamente significante 
-
-# os p-valores usando o correlation não são os mesmos de outras funções
-##rcor <- rcorr(as.matrix(df2 %>% 
-##        select(-phase,-C_AN,-TM_AN,-C_PN,-TM_PN,-TM_GN)), type = "pearson")
-
-# tabela com os valores das correlções
-  
-##flat_cor_mat <- function(cor_r, cor_p){
-  #This function provides a simple formatting of a correlation matrix
-  #into a table with 4 columns containing :
-  # Column 1 : row names (variable 1 for the correlation test)
-  # Column 2 : column names (variable 2 for the correlation test)
-  # Column 3 : the correlation coefficients
-  # Column 4 : the p-values of the correlations
-##  library(tidyr)
-##  library(tibble)
-##  cor_r <- rownames_to_column(as.data.frame(cor_r), var = "row")
-##  cor_r <- gather(cor_r, column, cor, -1)
-##  cor_p <- rownames_to_column(as.data.frame(cor_p), var = "row")
-##  cor_p <- gather(cor_p, column, p, -1)
-##  cor_p_matrix <- left_join(cor_r, cor_p, by = c("row", "column"))
-##  cor_p_matrix
-##}
-
-##flat_cor_mat(rcor$r, rcor$P) %>% 
-##  filter(row == 'dir_gap' & p < 0.05) %>% kable() %>%
-##  kable_styling(bootstrap_options = "striped", 
-##                full_width = F, 
-##                font_size = 12)
-
-##flat_cor_mat(rcor$r, rcor$P) %>% 
-##  filter((row == 'dir_gap'| column == 'dir_gap') & p < 0.05) 
-
-# variáveis categóricas
-# o dir_gap deve ser normal 
-##library(hrbrthemes) #temas para o gráfico
-##library(nortest) #teste de normalidade
-
-##sf.test(df2$dir_gap)
-
-##ggplot(df2, aes(x = dir_gap)) +
-##  geom_histogram()+
-##  stat_function(fun = dnorm, 
-##                args = list(mean = mean(df2$dir_gap),
-##                            sd = sd(df2$dir_gap)),
-##                aes(color = "Curva Normal Teórica"),
-##                size = 2) +
-##  scale_color_manual("Legenda:",
-##                     values = "#FDE725FF") +
-##  theme(legend.position = "bottom")
-
-##library('stats') # teste anova
-
-##AOV <- aov(dir_gap ~ phase+ TM_AN + C_AN + C_PN + TM_PN + TM_GN, data = df2) 
-##summary(AOV)
-
-# classificar como zero quando o bandgap é 0 e como 1 quando o bandgap é 
-# diferente de zero
-
-df2 <- df2 %>% mutate(dir_gap2 = ifelse(dir_gap != 0, 1,0))
-df2$dir_gap2 <- as.factor(df2$dir_gap2)
-
 # gráfico mostrando a quatidade de tmds semimetal (bandgap = 0) e semicondutor (bandgap != 0)
-ggplot(df2, aes(x=dir_gap2,fill=phase)) + 
-  geom_bar(position="stack") +
+  ggplot(df2, aes(x=dir_gap2, fill = dir_gap2)) + 
+  geom_bar(position = "dodge") +
   labs(x = 'Bandgap Direto', y = 'Contagem', fill = 'Fase') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
+        panel.border = element_rect(NA),
+        legend.position= 'none')
 
 # distribuição para os calcogênios
-ggplot(df2, aes(x=dir_gap2,fill=C_AN)) + 
-  geom_bar(position="stack") +
+ggplot(df2, aes(x=dir_gap2,color=C_AN, y = phase)) + 
+  geom_jitter() +
   labs(x = 'Bandgap Direto', y = 'Contagem', fill = 'Calcogênio') +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
         panel.border = element_rect(NA))
 
-# densidade
-# rede
-ggplot(df2, aes(x=a, fill = dir_gap2)) + 
-  geom_density(adjust=1.5, alpha=.4) +
-  labs(x = 'Rede',y = "Densidade", fill = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-# magmom
-ggplot(df2, aes(x=magmom, fill = dir_gap2)) + 
-  geom_density(adjust=1.5, alpha=.4) +
-  labs(x = 'Momento Magnético', y = "Densidade",fill = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-# hform
-ggplot(df2, aes(x=hform, fill = dir_gap2)) + 
-  geom_density(adjust=1.5, alpha=.4) +
-  labs(x = 'Energia de Formação', y = "Densidade",fill = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-# massa
-ggplot(df2, aes(x=mass, fill = dir_gap2)) + 
-  geom_density(adjust=1.5, alpha=.4) +
-  labs(x = 'Massa', y = "Densidade",fill = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# disperção de pontos
-# rede x hform
-ggplot(df2, aes(x=a, y = hform, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Tamanho da Rede', y = 'Energia de Formação', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# rede x massa
-ggplot(df2, aes(x=a, y = mass, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Tamanho da Rede', y = 'Massa', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# rede x magmom
-ggplot(df2, aes(x=a, y = magmom, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Tamanho da Rede', y = 'Momento Magnético', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# massa x magmom
-ggplot(df2, aes(x=mass, y = magmom, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Massa', y = 'Momento Magnético', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-#massa x hform
-ggplot(df2, aes(x=mass, y = hform, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Massa', y = 'Energia de Formação', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# magmom x hform
-ggplot(df2, aes(x=magmom, y = hform, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Momento Magnético', y = 'Energia de Formação', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# histograma
-ggplot(df2, aes(y = phase)) +
-  geom_boxplot(aes(x = magmom, fill = dir_gap2))
-ggplot(df2, aes(y = phase)) +
-  geom_boxplot(aes(x = mass, fill = dir_gap2)) 
-ggplot(df2, aes(y = phase)) +
-  geom_boxplot(aes(x = hform, fill = dir_gap2)) 
-ggplot(df2, aes(y = phase)) +
-  geom_boxplot(aes(x = a, fill = dir_gap2))
-
-ggplot(df2, aes(x=magmom, y = phase, color = dir_gap2)) + 
-  geom_point() +
-  labs(x = 'Momento Magnético', y = 'Fase', color = 'Bandgap') +
-  theme(panel.background = element_rect("white"),
-        panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA))
-
-# bandgap x magmom
-ggplot(df2, aes(x = dir_gap, y = magmom, color = TM_GN)) +
-  geom_point()
-
-# bandgap x massa
-ggplot(df2, aes(x = dir_gap, y = mass, color = TM_GN)) +
-  geom_point()
-
-# bandgap x hform
-ggplot(df2, aes(x = dir_gap, y = hform, color = TM_GN)) +
-  geom_point()
-
-# bandgap x fase
-ggplot(df2, aes(y = dir_gap, x = a, color = TM_GN))+
-  geom_point()
-
-save(df2, file = 'df2.Rda')
-load('df2.Rda')
-
 # separar as variáveis que vão ser usadas para a análise
-df3 <- df2 %>% select(magmom,hform, phase, C_AW,C_AD,TM_AR,C_AR,C_VDW,TM_AV,C_AV,C_COV,
-                      C_MP,C_BP,TM_FIE,C_FIE,C_EN,TM_AN,C_AN,dir_gap2)
-summary(df2$magmom)
+df3 <- df2 %>% select(hform, mass, C_AW, TM_AW, TM_AD, TM_FH, TM_SH, 
+                      TM_MP, TM_BP, TM_FIE, TM_AN, TM_GN, dir_gap2)
 # salvar o data frame
 save(df3,file="df3.Rda")
 
 # carregar o data frame
-
 load("df3.Rda")
+
 # separar a amostra em 20% para teste e 80% para treino
 set.seed(123)
-sample_size = floor(0.7*nrow(df3))
+sample_size = floor(0.8*nrow(df3))
 picked = sample(seq_len(nrow(df3)),size = sample_size)
 
 training = df3[picked,]
@@ -275,7 +67,7 @@ holdout = df3[-picked,]
 # as probabilidades das classes)
 # o train do caret não funciona se não for assim
 levels(training$dir_gap2)=c("Yes","No")
-levels(holdout$dir_gap2) = c("Yes", "No")
+levels(holdout$dir_gap2) = c("Yes","No")
 
 # análise de classificação
 
@@ -283,7 +75,6 @@ levels(holdout$dir_gap2) = c("Yes", "No")
 #--------------------------------------------------------------------------
 #                               arvore de decisão
 #--------------------------------------------------------------------------
-
 fitControl <- caret::trainControl(## 10-fold CV
   method = "repeatedcv",
   number = 10,
@@ -296,7 +87,7 @@ fitControl <- caret::trainControl(## 10-fold CV
   summaryFunction = twoClassSummary)
 
 # grade para encontrar os melhores parâmetros
-treeGrid <- expand.grid(cp = c(0.01, 0.1, 0.3, 0.5))
+treeGrid <- expand.grid(cp = c(0.01, 0.1, 0.3, 0.5, 0.7))
 
 set.seed(123)
 # ajuste do modelo no data set de treino para encontrar os melhores parâmetros
@@ -314,108 +105,35 @@ tree.training <- caret::train(dir_gap2 ~., data = training,
 whichTwoPct <- tolerance(tree.training$results, metric = "ROC", 
                          tol = 2, maximize = TRUE)  
 
-cat("best model within 2 pct of best:\n")
 tree.training$results[whichTwoPct,1:6]
-# cp       ROC      Sens      Spec     ROCSD    SensSD
-# 1 0.01 0.8200116 0.8794444 0.4916667 0.1355577 0.1218966
 
-# # update do modelo com os melhores parametros mtry = 6
-tree.training.update <- update(tree.training, param = list(cp = 0.01))
-summary(tree.training.update)
-cv.tree <- plot(tree.training.update, method = 'cv')
+# cv
+plot(tree.training, method = 'cv')
 
 # preditores mais importantes
-varImp(tree.training.update, scale = F) %>% plot()
+varImp(tree.training, scale = F) %>% plot(top = 5)
 
 # cálculo da predição e métricas de performance
 tree.pred = predict(tree.training, holdout, type = 'raw')
 
 # comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, tree.pred)
-print(result)
+#result = data.frame(holdout$dir_gap2, tree.pred)
 
-tree.metricas <- calculo_metricas(tree.pred,holdout$dir_gap2) %>% 
-  rename(tree = cm.byClass) %>% rownames_to_column('row_names')
-
-# cruva roc
-tree.pred <- as.numeric(tree.pred)
-tree.roc <- plot(roc(holdout[,19], tree.pred), print.auc = TRUE,
-               levels = c('Yes','No'),
-               max.auc.polygon = TRUE,
-               main = 'Curva ROC - Decision Tree')
-tree.metricas <- tree.metricas %>%  add_row(row_names = 'ROC', tree = tree.roc$auc[1])
-
-fitControl <- caret::trainControl(## 10-fold CV
-  method = "cv",
-  number = 10,
-  ## repeated ten times
-  #repeats = 10
-  ## Estimate class probabilities
-  classProbs = TRUE, # To calculate ROC
-  ## Evaluate performance using 
-  ## the following function
-  summaryFunction = twoClassSummary
-  )
-
-# grade para encontrar os melhores parâmetros
-treeGrid <- expand.grid(cp = c(0,0.01, 0.1, 0.3, 0.5))
-
-set.seed(123)
-# ajuste do modelo no data set de treino para encontrar os melhores parâmetros
-tree.training <- caret::train(dir_gap2 ~., data = training, 
-                            method = "rpart", 
-                            trControl = fitControl, 
-                            #verbose = FALSE, 
-                            tuneGrid = treeGrid,
-                            ## Specify which metric to optimize
-                            metric = "ROC"
-                            )
-plot(tree.training)
-# encontrar os melhores valores dos parâmetros
-# a função train escolhe o melhor modelo com o maior valor de performance
-# a função tolerance é usada para encontrar o modelo menos complexo
-whichTwoPct <- tolerance(tree.training$results, metric = "ROC", 
-                         tol = 2, maximize = TRUE)  
-
-#cat("best model within 2 pct of best:\n")
-tree.training$results[whichTwoPct,1:6]
-#    cp       ROC      Sens      Spec     ROCSD     SensSD
-#     0 0.8574074 0.9319444 0.4833333 0.1092738 0.07869009
-
-# # update do modelo com os melhores parametros mtry = 6
-tree.training.update <- update(tree.training, param = list(cp = 0))
-summary(tree.training.update)
-plot(tree.training.update, method = 'cv')
-
-# preditores mais importantes
-varImp(tree.training.update, scale = F) %>% plot()
-
-# cálculo da predição e métricas de performance
-tree.pred = predict(tree.training, holdout, type = 'raw')
-
-# comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, tree.pred)
-print(result)
-
-tree.metricas <- calculo_metricas(tree.pred,holdout$dir_gap2) %>% 
-  rename(tree = cm.byClass) %>% rownames_to_column('row_names')
+#tree.metricas <- calculo_metricas(tree.pred,holdout$dir_gap2) %>% 
+#  dplyr::rename(tree = cm.byClass) %>% rownames_to_column('row_names')
 
 # cruva roc
-tree.pred <- as.numeric(tree.pred)
-tree.roc <- plot(roc(holdout[,19], tree.pred), print.auc = TRUE,
-               levels = c('Yes','No'),
-               max.auc.polygon = TRUE,
-               main = 'Curva ROC - Decision Tree')
-tree.metricas <- tree.metricas %>%  add_row(row_names = 'ROC', tree = tree.roc$auc[1])
-                                        
+#tree.pred <- as.numeric(tree.pred)
+#tree.roc <- plot(roc(holdout[,14], tree.pred), print.auc = TRUE,
+#               levels = c('Yes','No'),
+#               max.auc.polygon = TRUE,
+#               main = 'Curva ROC - Decision Tree')
+#tree.metricas <- tree.metricas %>%  add_row(row_names = 'ROC', tree = tree.roc$auc[1])
+
 #--------------------------------------------------------------------------
 #                               random forest
 #--------------------------------------------------------------------------
-# 10 folds repeat 3 times
-control <- trainControl(method='repeatedcv', 
-                        number=10, 
-                        repeats=3)
-
+# 10 folds repeat 10 times
 fitControl <- caret::trainControl(## 10-fold CV
   method = "repeatedcv",
   number = 10,
@@ -428,7 +146,7 @@ fitControl <- caret::trainControl(## 10-fold CV
   summaryFunction = twoClassSummary)
 
 # grade para encontrar os melhores parâmetros
-rfGrid <- expand.grid(mtry = c(1:10))
+rfGrid <- expand.grid(mtry = c(1:15))
 
 set.seed(123)
 # ajuste do modelo no data set de treino para encontrar os melhores parâmetros
@@ -443,37 +161,31 @@ rf.training <- caret::train(dir_gap2 ~., data = training,
 # encontrar os melhores valores dos parâmetros
 # a função train escolhe o melhor modelo com o maior valor de performance
 # a função tolerance é usada para encontrar o modelo menos complexo
-whichTwoPct <- tolerance(rf.training$results, metric = "ROC", 
-                         tol = 2, maximize = TRUE)  
+#whichTwoPct <- tolerance(rf.training$results, metric = "ROC", tol = 2, maximize = TRUE)  
+#rf.training$results[whichTwoPct,1:6]$mtry
 
-cat("best model within 2 pct of best:\n")
-rf.training$results[whichTwoPct,1:6]$mtry
-
-# # update do modelo com os melhores parametros mtry = 6
-rf.training.update <- update(rf.training, param = list(mtry=rf.training$results[whichTwoPct,1:6]$mtry))
-summary(rf.training.update)
-plot(rf.training.update, method = 'cv')
+plot(rf.training, method = 'cv')
 
 # preditores mais importantes
-varImp(rf.training.update, scale = F) %>% plot()
+varImp(rf.training, scale = F) %>% plot(top = 5)
 
 # cálculo da predição e métricas de performance
-rf.pred = predict(rf.training, holdout, type = 'raw')
+#rf.pred = predict(rf.training, holdout, type = 'raw')
 
 # comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, rf.pred)
-print(result)
+#result = data.frame(holdout$dir_gap2, rf.pred)
+#print(result)
 
-rf.metricas <- calculo_metricas(rf.pred,holdout$dir_gap2) %>% 
-  rename(rf = cm.byClass) %>% rownames_to_column('row_names')
+#rf.metricas <- calculo_metricas(rf.pred,holdout$dir_gap2) %>% 
+#  dplyr::rename(rf = cm.byClass) %>% rownames_to_column('row_names')
 
 # cruva roc
-rf.pred <- as.numeric(rf.pred)
-rf.roc <- plot(roc(holdout[,19], rf.pred), print.auc = TRUE,
-               levels = c('Yes','No'),
-     max.auc.polygon = TRUE,
-     main = 'Curva ROC - Random Florest')
-rf.metricas <- rf.metricas %>%  add_row(row_names = 'ROC', rf = rf.roc$auc[1])
+#rf.pred <- as.numeric(rf.pred)
+#rf.roc <- plot(roc(holdout[,19], rf.pred), print.auc = TRUE,
+#               levels = c('Yes','No'),
+#     max.auc.polygon = TRUE,
+#     main = 'Curva ROC - Random Florest')
+#rf.metricas <- rf.metricas %>%  add_row(row_names = 'ROC', rf = rf.roc$auc[1])
 #--------------------------------------------------------------------------
 #                         gradient boosted modeling
 #--------------------------------------------------------------------------
@@ -510,50 +222,37 @@ boost.training <- train(dir_gap2 ~., data = training,
 # encontrar os melhores valores dos parâmetros
 # a função train escolhe o melhor modelo com o maior valor de performance
 # a função tolerance é usada para encontrar o modelo menos complexo
-whichTwoPct <- tolerance(boost.training$results, metric = "ROC", 
-                         tol = 2, maximize = TRUE)  
+#whichTwoPct <- tolerance(boost.training$results, metric = "ROC", 
+#                         tol = 2, maximize = TRUE)  
 
-cat("best model within 2 pct of best:\n")
-boost.training$results[whichTwoPct,1:6]
-boost.training$bestTune
+#boost.training$results[whichTwoPct,1:6]
+#boost.training$bestTune
 
 # plotar o resampling
-trellis.par.set(caretTheme())
 plot(boost.training,method = "cv")
-summary(boost.training$finalModel)
-
-# update do modelo com os melhores parametros
-boost.training.update <- update(boost.training, 
-                                param = list(n.trees = boost.training$results[whichTwoPct,1:6]$n.trees,
-                                                             interaction.depth = boost.training$results[whichTwoPct,1:6]$interaction.depth,
-                                                             shrinkage = boost.training$results[whichTwoPct,1:6]$shrinkage,
-                                                             n.minobsinnode = boost.training$results[whichTwoPct,1:6]$n.minobsinnode))
-summary(boost.training.update)
-
-plot(boost.training.update, method = "cv")
 
 # preditores mais importantes
-varImp(boost.training.update, scale = F) %>% plot()
+varImp(boost.training, scale = F) %>% plot(top = 5)
 
 # predição
 boost.pred <- predict(boost.training,holdout)
-print(boost.pred)
+#print(boost.pred)
 
 # comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, boost.pred)
-print(result)
+#result = data.frame(holdout$dir_gap2, boost.pred)
+#print(result)
 
 # cálculo das métricas
-boost.metricas <- calculo_metricas(boost.pred,holdout$dir_gap2) %>% 
-  rename(GBM = cm.byClass) %>% rownames_to_column('row_names')
+#boost.metricas <- calculo_metricas(boost.pred,holdout$dir_gap2) %>% 
+#  dplyr::rename(GBM = cm.byClass) %>% rownames_to_column('row_names')
 
 # curva roc
-boost.pred <- as.numeric(boost.pred)
-boost.roc <- plot(roc(holdout[,19], boost.pred), print.auc = TRUE,
-               levels = c('Yes','No'),
-               max.auc.polygon = TRUE,
-               main = 'Curva ROC - Gradient Boosted Modeling')
-boost.metricas <- boost.metricas %>% add_row(row_names = 'ROC', GBM = boost.roc$auc[1])
+#boost.pred <- as.numeric(boost.pred)
+#boost.roc <- plot(roc(holdout[,14], boost.pred), print.auc = TRUE,
+#               levels = c('Yes','No'),
+#               max.auc.polygon = TRUE,
+#               main = 'Curva ROC - Gradient Boosted Modeling')
+#boost.metricas <- boost.metricas %>% add_row(row_names = 'ROC', GBM = boost.roc$auc[1])
 #--------------------------------------------------------------------------
 #                K-Nearest Neighbor Neighbors Classifier
 #--------------------------------------------------------------------------
@@ -570,60 +269,53 @@ fitControl <- caret::trainControl(## 10-fold CV
   summaryFunction = twoClassSummary)
 
 # grade para encontrar os melhores parâmetros
-gbmGrid <- expand.grid(k = c(1:50))
+knnGrid <- expand.grid(k = c(1:50))
 
 set.seed(123)
 # ajuste do modelo no data set de treino para encontrar os melhores parâmetros
 knn.training <- caret::train(dir_gap2 ~., data = training, 
                         method = "knn", 
                         trControl = fitControl,
-                        tuneGrid = gbmGrid,
+                        tuneGrid = knnGrid,
                         ## Specify which metric to optimize
                         metric = "ROC")
 
 # encontrar os melhores valores dos parâmetros
 # a função train escolhe o melhor modelo com o maior valor de performance
 # a função tolerance é usada para encontrar o modelo menos complexo
-whichTwoPct <- tolerance(knn.training$results, metric = "ROC", 
-                         tol = 2, maximize = TRUE)  
+#whichTwoPct <- tolerance(knn.training$results, metric = "ROC", 
+#                         tol = 2, maximize = TRUE)  
 
 #cat("best model within 2 pct of best:\n")
-knn.training$results[whichTwoPct,1:6] # k = 2 
-knn.training$bestTune
+#knn.training$results[whichTwoPct,1:6] # k = 2 
+#knn.training$bestTune
 
 # plotar o resampling
-trellis.par.set(caretTheme())
 plot(knn.training,method = "cv")
-summary(knn.training$finalModel)
-
-# update do modelo com os melhores parametros
-knn.training.update <- update(knn.training, param = list(k = 2))
-summary(knn.training.update)
-plot(knn.training.update, method = "cv")
 
 # preditores mais importantes
-varImp(knn.training.update, scale = F) %>% plot()
+varImp(knn.training, scale = F) %>% plot(top = 5)
 
 # predição
 knn.pred <- predict(knn.training,holdout)
-print(knn.pred)
-#roc(holdout[,-19],knn.training)
+#print(knn.pred)
+roc(holdout,knn.training)
 
 # comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, knn.pred)
-print(result)
+#result = data.frame(holdout$dir_gap2, knn.pred)
+#print(result)
 
 # cálculo das métricas
-knn.metricas <- calculo_metricas(knn.pred,holdout$dir_gap2) %>% 
-rename(knn = cm.byClass) %>% rownames_to_column('row_names')
+#knn.metricas <- calculo_metricas(knn.pred,holdout$dir_gap2) %>% 
+#  dplyr::rename(knn = cm.byClass) %>% rownames_to_column('row_names')
 
 # curva roc
-knn.pred <- as.numeric(boost.pred)
-knn.roc <- plot(roc(holdout[,19], knn.pred), print.auc = TRUE,
-                  levels = c('Yes','No'),
-                  max.auc.polygon = TRUE,
-                  main = 'K-Nearest Neighbor Neighbors Classifier')
-knn.metricas <- knn.metricas %>%  add_row(row_names = 'ROC', knn = knn.roc$auc[1])
+#knn.pred <- as.numeric(boost.pred)
+#knn.roc <- plot(roc(holdout[,14], knn.pred), print.auc = TRUE,
+#                  levels = c('Yes','No'),
+#                  max.auc.polygon = TRUE,
+#                  main = 'K-Nearest Neighbor Neighbors Classifier')
+#knn.metricas <- knn.metricas %>%  add_row(row_names = 'ROC', knn = knn.roc$auc[1])
 #--------------------------------------------------------------------------
 #                   Gaussian Naive Bayes Classifier
 #--------------------------------------------------------------------------
@@ -639,7 +331,6 @@ fitControl <- caret::trainControl(## 10-fold CV
   ## the following function
   summaryFunction = twoClassSummary,
   search = "random")
-
 
 # grade para encontrar os melhores parâmetros
 nvGrid <- expand.grid(usekernel = c(TRUE, FALSE),
@@ -657,53 +348,41 @@ nv.training <- train(dir_gap2 ~., data = training,
                         ## Specify which metric to optimize
                         metric = "ROC")
 
-summary(nv.training)
+  summary(nv.training)
 
 # encontrar os melhores valores dos parâmetros
 # a função train escolhe o melhor modelo com o maior valor de performance
 # a função tolerance é usada para encontrar o modelo menos complexo
-whichTwoPct <- tolerance(nv.training$results, metric = "ROC", 
-                         tol = 2, maximize = TRUE)  
+#whichTwoPct <- tolerance(nv.training$results, metric = "ROC", 
+#                         tol = 2, maximize = TRUE)  
 
-cat("best model within 2 pct of best:\n")
-nv.training$results[whichTwoPct,1:6]
-nv.training$bestTune
+#nv.training$results[whichTwoPct,1:6]
 
 # plotar o resampling
-trellis.par.set(caretTheme())
 plot(nv.training,method = "cv")
-summary(nv.training$finalModel)
-
-# update do modelo com os melhores parametros
-nv.training.update <- update(nv.training, param = list(laplace = 1,
-                                                       usekernel = TRUE,
-                                                       adjust = 0.75))
-summary(nv.training.update)
-
-plot(nv.training.update, method = "cv")
 
 # preditores mais importantes
-varImp(nv.training.update, scale = F) %>% plot()
+varImp(nv.training, scale = F) %>% plot(top = 5)
 
 # predição
-nv.pred <- predict(nv.training,holdout)
-print(nv.pred)
+#nv.pred <- predict(nv.training,holdout)
+#print(nv.pred)
 
 # comparação entre os dados e a predição
-result = data.frame(holdout$dir_gap2, nv.pred)
-print(result)
+#result = data.frame(holdout$dir_gap2, nv.pred)
+#print(result)
 
 # cálculo das métricas
-nv.metricas <- calculo_metricas(nv.pred,holdout$dir_gap2) %>% 
-  rename(nv = cm.byClass) %>% rownames_to_column('row_names')
+#nv.metricas <- calculo_metricas(nv.pred,holdout$dir_gap2) %>% 
+#  dplyr::rename(nv = cm.byClass) %>% rownames_to_column('row_names')
 
 # curva roc
-nv.pred <- as.numeric(nv.pred)
-nv.roc <- plot(roc(holdout[,19], nv.pred), print.auc = TRUE,
-                  levels = c('Yes','No'),
-                  max.auc.polygon = TRUE,
-                  main = 'Curva ROC - Gaussian Naive Bayes Classifier')
-nv.metricas <- nv.metricas %>% add_row(row_names = 'ROC', nv = nv.roc$auc[1])
+#nv.pred <- as.numeric(nv.pred)
+#nv.roc <- plot(roc(holdout[,19], nv.pred), print.auc = TRUE,
+#                  levels = c('Yes','No'),
+#                  max.auc.polygon = TRUE,
+#                  main = 'Curva ROC - Gaussian Naive Bayes Classifier')
+#nv.metricas <- nv.metricas %>% add_row(row_names = 'ROC', nv = nv.roc$auc[1])
 
 
 #--------------------------------------------------------------------------
@@ -711,44 +390,83 @@ nv.metricas <- nv.metricas %>% add_row(row_names = 'ROC', nv = nv.roc$auc[1])
 #--------------------------------------------------------------------------
 # ROC_AUC is similar to Balanced Accuracy, but there are some key differences: 
 # Balanced Accuracy is calculated on predicted classes, and ROC_AUC is 
-# calculated on predicted scores for each data which can't be obtained on the 
+# cal ~]culated on predicted scores for each data which can't be obtained on the 
 # confusion matrix.
-tabela <- purrr::reduce(list(rf.metricas,knn.metricas, boost.metricas,
-                             tree.metricas, nv.metricas), 
-                        dplyr::left_join) %>% kable(caption = 'Comparação das predições', digits = 3) %>% 
-                        kable_classic_2(full_width = F)
-tabela
 
-tabela_2 <- data.frame(Treino = c(knn.training$results[whichTwoPct,1:6][1,'ROC'],
-                                    rf.training$results[whichTwoPct,1:6][1,'ROC'],
-                                    boost.training$results[whichTwoPct,1:6][1,'ROC'],
-                                    tree.training$results[whichTwoPct,1:6][1,'ROC'],
-                                    nv.training$results[whichTwoPct,1:6][1,'ROC']),
-                       Teste = c(knn.roc$auc, rf.roc$auc, boost.roc$auc, 
-                                   tree.roc$auc, nv.roc$auc), 
-                       Modelos = c('K-NN', 'RF', 'GBM', 'Tree', 'NV')) %>% 
-  kable(caption = 'Curva ROC', digits = 3) %>% 
-  kable_classic_2(full_width = F)
-tabela_2
+avalia <- function(modelo){
+  #nome <- as.character(modelo)
+  #p_treino <- predict(modelo, training, type='prob') # Probabilidade predita
+  c_treino <- predict(modelo, training)              # Classificação
+  
+  #Base de teste
+  #p_teste <- predict(modelo, holdout, type='prob')
+  c_teste <- predict(modelo, holdout)
+  
+  c_treino <- as.numeric(c_treino)
+  c_teste <- as.numeric(c_teste)
+  
+  roc_c_treino <- roc(training[,13], c_treino)
+  roc_c_teste <- roc(holdout[,13], c_teste)
+  
+  dados <- data.frame(teste = roc_c_teste$auc,
+    treino= roc_c_treino$auc) %>% t()  %>% as.data.frame() %>%
+    rownames_to_column(var = 'rowname') %>% dplyr::rename(ROC = 2, 'Base' = 1)
+  return(dados)
+}
 
-data.frame(Treino = c(knn.training$results[whichTwoPct,1:6][1,'ROC'],
-                                  rf.training$results[whichTwoPct,1:6][1,'ROC'],
-                                  boost.training$results[whichTwoPct,1:6][1,'ROC'],
-                                  tree.training$results[whichTwoPct,1:6][1,'ROC'],
-                                  nv.training$results[whichTwoPct,1:6][1,'ROC']),
-                       Teste = c(knn.roc$auc, rf.roc$auc, boost.roc$auc, 
-                                 tree.roc$auc, nv.roc$auc), 
-                       Modelos = c('K-NN', 'RF', 'GBM', 'Tree', 'NV')) %>%
-  gather(key = 'ROC', value = 'Valor', - Modelos) %>% 
-  ggplot(aes(x = ROC,y = Valor, fill = Modelos)) + 
-  geom_col(position = "dodge") +
-  labs(title = "Resultados Curva ROC") +
-  scale_y_continuous(labels = scales::number_format(accuracy = 0.01))+
+tree <- avalia(tree.training)
+gbm <- avalia(boost.training)
+rf <- avalia(rf.training)
+knn <- avalia(knn.training)
+nv <- avalia(nv.training)
+
+# comparação entre base de tete e base de treino
+# o gráfico contém somente os valores da curva roc para a base de teste
+avaliacao <- purrr::reduce(list(tree,gbm,rf,knn,nv), 
+                           dplyr::left_join, by = "Base")  %>% 
+  dplyr::rename('Tree' = 2, 'GBM' = 3, 'RF' = 4, 'K-NN' = 5, 'NV' = 6) %>%
+  t() %>% as.data.frame() %>% rownames_to_column(var = 'rowname') %>%
+  'colnames<-'(.[1,]) %>% .[-1, ] %>% mutate_at(c('teste','treino'),as.numeric) %>%
+  ggplot(aes(x = Base, y = teste, fill = Base))+
+  geom_col()+
+  labs(x = 'Modelo', y = 'ROC', title = 'Curva ROC na base de teste')+
+  geom_text(aes(label = round(teste,3)), vjust = 1.5, colour = "white")+
+  scale_y_continuous(labels = scales::label_number(accuracy = 0.01)) +
   theme(panel.background = element_rect("white"),
         panel.grid = element_line("grey95"),
-        panel.border = element_rect(NA)) %>% 
-  png(file="C:/Users/Gabriela/Desktop/MBA - USP/TCC/Banco de dados/roctotal.png",
-                                                 width=600 , height=350, units = "px")
-dev.off()
+        panel.border = element_rect(NA),
+        legend.position="none")
+avaliacao
+# gmb é o modelo com o maior valor AUC 
 
-?png
+#variaveis importantes dos modelos com maior roc
+var_rf <- ggplot(varImp(rf.training, scale = F), top = 5) +
+  labs(x = 'Variável', y = 'Importância', title ='Random Forest') + 
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA)
+        )
+var_boost <- ggplot(varImp(boost.training, scale = F), top = 5) +
+  labs(x = 'Variável', y = 'Importância', title ='GBM') + 
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA)
+        #plot.title = element_text(hjust = 0.5)
+  )
+
+  
+# figura final
+grid.arrange(arrangeGrob(avaliacao,left = textGrob("a)", x = unit(1, "npc"), y = unit(.975, "npc"))),
+             arrangeGrob(var_rf, left = textGrob("b)", x = unit(1, "npc"), 
+                          y = unit(.975, "npc"))),
+             #arrangeGrob(var_knn,left = textGrob("c)", x = unit(1, "npc"), 
+            #              y = unit(.95, "npc"))),
+             #arrangeGrob(rf.training$bestTune %>%  
+            #               tableGrob(rows = NULL, theme = ttheme_default(base_size = 10))
+             #            ),
+             #arrangeGrob(knn.training$bestTune %>%  
+            #               tableGrob(rows = NULL, theme = ttheme_default(base_size = 10)),
+             #            top = 'KNN'),
+             ncol = 2, 
+             layout_matrix = cbind(c(1), c(2,2)), heights = c(0.6,0.6)
+)
