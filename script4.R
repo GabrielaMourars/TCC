@@ -4,8 +4,8 @@
 pacotes <- c('corrplot', 'caret', 'Hmisc','correlation', "tidyverse", 'gbm',
              'randomForest', "kableExtra", 'rpart', "rpart.plot", 'class',
              'gtools', 'corrgram','diffdf', 'MLmetrics', 'jtools',
-             'xgboost', 'plyr','scales', 'ggplot2',"fastDummies",'nortest')
-
+             'xgboost', 'plyr','scales', 'ggplot2',"fastDummies",'nortest',
+             'gridExtra','grid','cowplot')
 options(rgl.debug = TRUE)
 
 if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
@@ -22,69 +22,37 @@ if(sum(as.numeric(!pacotes %in% installed.packages())) != 0){
 # o bandgap será calculado de acordo com o modelo de anderson
 
 # carregar o banco de dados
-load('df.Rda')
+load('data.Rda')
 
-# adicionar uma coluna com o bandgap das heterojunções calculado pela regra de anderson
-df <-df %>% mutate(bandgap = case_when((as.numeric(tipo) == 2 & cbma > cbmb) ~ (cbmb - vbma),
-                                       (as.numeric(tipo) == 2 & cbma < cbmb) ~ (cbma - vbmb),
-                                       (as.numeric(tipo) == 1 & (vbma - cbma > vbmb - cbmb)) ~ (vbmb - cbmb),
-                                       (as.numeric(tipo) == 1 & (vbma - cbma < vbmb - cbmb)) ~ (vbma - cbma),
-                                       as.numeric(tipo) == 3 ~ 0)) 
+data <- data %>% mutate(bandgap = case_when((as.numeric(tipo) == 2 & cbm.x > cbm.y) ~ (cbm.y - vbm.x),
+                                            (as.numeric(tipo) == 2 & cbm.x < cbm.y) ~ (cbm.x - vbm.y),
+                                            (as.numeric(tipo) == 1 & (vbm.x - cbm.x > vbm.y - cbm.y)) ~ (vbm.y - cbm.y),
+                                            (as.numeric(tipo) == 1 & (vbm.x - cbm.x < vbm.y - cbm.y)) ~ (vbm.x - cbm.x),
+                                            (as.numeric(tipo) == 3) ~ 0)) 
 
-df$bandgap <- abs(df$bandgap)
+data$bandgap <- abs(data$bandgap)
+data <- data %>% select(-tipo)
 
-#-------------------------------------------------------------------------------
-# Análise descritiva
-#-------------------------------------------------------------------------------
-summary(df)
-
-# gráfico de dispersão (não ficou muito legal =/)
-ggplot(df, aes(x = TM_AN_V1, y = bandgap)) +
-  geom_boxplot(color = "#39568CFF", size = 1) +
-  labs(x = "Metal de Transição",
-       y = "Bandgap") +
-  scale_color_manual("Legenda:",
-                     values = "grey50") +
-  theme_classic()
-
-# boxplot da distribuição do bandgap para cada metal de transição 
-# agora isso não fa muito sentido pois o que está sendo avaliado é a junção 
-# dos tmds e não cada tmd em si
-# a única variável que capta alguma característica da heterojunção é o tipo da junção
-df %>% 
-  ggplot(aes(x = TM_AN_V1,y = bandgap, fill = tipo)) + 
-  geom_boxplot()+
-  xlab('Metal de Transição') +
-  ylab('Bandgap')
-
-df %>% ggplot(aes(x = C_AN_V1,y = bandgap, fill = tipo)) + 
-  geom_boxplot()+
-  xlab('Calcogênio') +
-  ylab('Bandgap')
-
-# correlação 
-# como o bandgap é criado a partir das bandas de valência e condução dos tmds
-# nao faz muito sentido calcular a correlação entre eles
-#df %>% correlation(method = 'pearson') %>% dplyr::filter(Parameter2 == 'bandgap') %>%
-#  kable() %>%
-#  kable_styling(bootstrap_options = "striped", full_width = F, font_size = 28)
-
-# teste anova para as variáveis categóricas
-aov(bandgap ~ tipo + TM_AN_V1 + TM_AN_V2 + C_AN_V1 + C_AN_V2, df) %>% summary()
-# todos as variáveis são estatisticamente significantes
+summary(data)
 
 # transformar em dummy
-df_dummy <- fastDummies::dummy_cols(df, select_columns = c('TM_AN_V1','TM_AN_V2','C_AN_V1','C_AN_V2','tipo'),
+data_dummy <- fastDummies::dummy_cols(data, select_columns = c('TM_AN_V1','TM_AN_V2','C_AN_V1','C_AN_V2','tipo'),
                                        remove_selected_columns = T,
                                        remove_most_frequent_dummy = T) #categoria de referência
 
 # separar a amostra em 30% para teste e 70% para treino
 set.seed(123)
-sample_size = floor(0.7*nrow(df_dummy))
-picked = sample(seq_len(nrow(df_dummy)),size = sample_size)
+sample_size = floor(0.7*nrow(data_dummy))
+picked = sample(seq_len(nrow(data_dummy)),size = sample_size)
 
-training = df_dummy[picked,]
-holdout = df_dummy[-picked,]
+training = data_dummy[picked,]
+holdout = data_dummy[-picked,]
+
+sample_size = floor(0.7*nrow(data))
+picked = sample(seq_len(nrow(data)),size = sample_size)
+
+training = data[picked,]
+holdout = data[-picked,]
 #-------------------------------------------------------------------------------
 # Análise de Predição
 # aplicação de métodos de machine learning para predizer o tipo de junção
@@ -125,14 +93,10 @@ lm_model <- caret::train(bandgap ~., data = training,
                               ## Specify which metric to optimize
                               metric = 'RMSE')
 
-# generalized linear model (não deu certo)
-glm_model <- caret::train(bandgap ~., data = training, 
-                          method = "glm", 
-                          trControl = fitControl, 
-                          verbose = FALSE, 
-                          #tuneGrid = treeGrid,
-                          ## Specify which metric to optimize
-                          metric = 'RMSE')
+summary(lm_model)
+
+
+
 
 # generalized linear model with step wise
 library('MASS')
@@ -143,26 +107,18 @@ glmStepAIC_model <- caret::train(bandgap ~., data = training,
                                  #tuneGrid = treeGrid,
                                  ## Specify which metric to optimize
                                  metric = 'RMSE')
-
-# Boosted Generalized Linear Model(não deu certo)
-glmboost_model <- caret::train(bandgap ~., data = training, 
-                               method = "glmboost", 
-                               trControl = fitControl, 
-                               verbose = FALSE, 
-                               #tuneGrid = treeGrid,
-                               ## Specify which metric to optimize
-                               metric = 'RMSE')
-library(lmtest)
-bptest(modelo_linear)
-# data:  modelo_linear BP = 105.8, df = 32, p-value = 7.985e-10
-
+summary(glmStepAIC_model)
+glmStepAIC_model$results
 # teste de aderência dos resíduos à normalidade
 #Shapiro-Francia: n > 30
+# p-valor > 0.05 -> a distribuição dos dados não é significativamente diferentes 
+# de uma distribuição normal
 # lm
-sf.test(lm_model$finalModel$residuals)
+sf.test(lm_model$finalModel$residuals) 
 # glm com step wise
 sf.test(glmStepAIC_model$finalModel$residuals)
 # os resíduos são aderentes a normalidade
+sf.test(data$bandgap)
 
 #Histograma dos resíduos do modelo linear (não consegui fazer o gráfico)
 lm_model %>%
@@ -187,15 +143,90 @@ lm_model %>%
         panel.border = element_rect(NA),
         legend.position = "bottom")
 
-# como os resídios são aderentes a normalidade não é necessário fazer uma 
+# como os resídios não são aderentes a normalidade. é necessário fazer uma 
 # transformação de box-cox
 
-# procedimendo step-wise já foi feito com o modelo glmStepAIC
+#Para calcular o lambda de Box-Cox
+library("car")
+data_box_cox <- data %>% mutate(bandgap = bandgap +1)
+lambda_BC <- powerTransform(data_box_cox$bandgap)
+lambda_BC
+
+#Inserindo o lambda de Box-Cox na base de dados para a estimação de um novo modelo
+data_box_cox$bandgap <- (((data_box_cox$bandgap ^ lambda_BC$lambda) - 1) / 
+                           lambda_BC$lambda)
+
+training_box = data_box_cox[picked,]
+holdout_box = data_box_cox[-picked,]
+
+#Estimando um novo modelo OLS com variável dependente transformada por Box-Cox
+lm_model_box <- caret::train(bandgap ~., data = training_box, 
+                         method = "lm", 
+                         trControl = fitControl, 
+                         verbose = FALSE, 
+                         #tuneGrid = treeGrid,
+                         ## Specify which metric to optimize
+                         metric = 'RMSE') 
+
+summary(lm_model_box)
+#teste shapiro-francia
+sf.test(lm_model_box$finalModel$residuals)
+# continua não normal
+
+# modelo linear com step-wise
+glmStepAIC_model_box <- caret::train(bandgap ~., data = training_box, 
+                                 method = "glmStepAIC", 
+                                 trControl = fitControl, 
+                                 verbose = FALSE, 
+                                 #tuneGrid = treeGrid,
+                                 ## Specify which metric to optimize
+                                 metric = 'RMSE')
+summary(glmStepAIC_model_box)
+glmStepAIC_model_box$results
+sf.test(glmStepAIC_model_box$finalModel$residuals)
+#continua não normal
+
+# teste Breusch-Pagan para heterocedasticidade 
+training_box %>%
+  mutate(residuos = lm_model_box$finalModel$residuals) %>% 
+  ggplot(data = ., aes(y = residuos, x = bandgap)) + 
+  geom_point() + 
+  geom_abline(slope = 0) +
+  theme_classic()
+
+training %>%
+  mutate(residuos = glmStepAIC_model$finalModel$residuals) %>% 
+  ggplot(data = ., aes(y = residuos, x = bandgap)) + 
+  geom_point() + 
+  geom_abline(slope = 0) +
+  theme_classic()
+
+training %>%
+  ggplot(aes(x = predict(glmStepAIC_model,training), y = bandgap))+
+  geom_point()+
+  scale_y_log10()
+
+
+data %>% ggplot(aes(x = sqrt(bandgap)))+
+  geom_histogram(binwidth = 0.05)
+
+data %>% ggplot(aes(x = bandgap))+
+  geom_histogram(binwidth = 0.05) 
+
+
+ggplot(data = training, aes(sample = glmStepAIC_model$finalModel$residuals)) + 
+  geom_qq() + 
+  geom_qq_line() + 
+  labs( x = 'Theoretical', y = 'Sample Quantiles - a')
+
+var_func <- lm(residuos^2 ~ tx_homicidio, data = msp)
+summary(var_func)
+
 
 # intervalos
-confint(modelo_linear_step, level = 0.95) # siginificância 5%
+confint(lm_model, level = 0.95) # siginificância 5%
 
-plot_summs(modelo_linear_step, colors = "#440154FF", scale = TRUE, plot.distributions = TRUE,
+plot_summs(lm_model, colors = "#440154FF", scale = TRUE, plot.distributions = TRUE,
            inner_ci_level = .95) 
 
 export_summs(lm_model,
@@ -203,24 +234,27 @@ export_summs(lm_model,
              scale = F, digits = 6)
 
 # preditores mais importantes
-varImp(lm_model, scale = F) %>% plot()
-varImp(glmStepAIC_model, scale = F) %>% plot()
+varImp(lm_model, scale = F) %>% plot(top = 10)
+varImp(glmStepAIC_model, scale = F) %>% plot(top = 10)
 
 # resultados
 lm_model$results
+plot(lm_model_box)
+lm_model_box$results
 glmStepAIC_model$results
+glmStepAIC_model_box$results
 
 # comparação dos modelos
 model_list <- list(lm = lm_model, glm = glmStepAIC_model)
 res <- resamples(model_list)
 summary(res)
 
-# testar de um modelo é estatisticamente diferrente do outro
+# testar se um modelo é estatisticamente diferrente do outro
 compare_models(lm_model, glmStepAIC_model)
 # p-value = 0.5128, os modelos não são estatisticamente diferentes
 
 # cálculo da predição e métricas de performance
-lm_model_pred = predict(lm_model, holdout,type = 'raw')
+lm_model_pred = predict(lm_model, holdout)
 glmStepAIC_model_pred = predict(glmStepAIC_model,holdout)
 
 #-------------------------------------------------------------------------------
@@ -230,7 +264,7 @@ glmStepAIC_model_pred = predict(glmStepAIC_model,holdout)
 library('pls')
 
 # grade para encontrar os melhores parâmetros
-seed(123)
+set.seed(123)
 plsGrid <- expand.grid(ncomp = c(1:10))
 
 pls_model <- caret::train(bandgap ~., data = training, 
@@ -243,9 +277,11 @@ pls_model <- caret::train(bandgap ~., data = training,
 summary(pls_model)
 
 plot(pls_model)
-
+sf.test(pls_model)
+pls_model$results
+pls_model$bestTune
 # variáveis importantes
-plot(varImp(pls_model))
+plot(varImp(pls_model), top = 10)
 
 # previsão
 pls_pred <- predict(pls_model,holdout)
@@ -269,13 +305,11 @@ lasso_model <- train(bandgap ~., data = training,
                    metric = "RMSE")
 
 summary(lasso_model)
-lasso_model$results
-lasso_model$finalModel
-lasso_model$bestTune
 plot(lasso_model)
-
+lasso_model$results
+lasso_model$bestTune
 # variáveis importantes
-plot(varImp(lasso_model))
+plot(varImp(lasso_model), top = 10)
 
 # previsão
 lasso_pred <- predict(lasso_model,holdout)
@@ -304,7 +338,7 @@ gbm_model$bestTune
 plot(gbm_model)
 
 # variáveis importantes
-plot(varImp(gbm_model))
+plot(varImp(gbm_model), top = 10)
 
 # previsão
 gbm_pred <- predict(gbm_model,holdout)
@@ -332,12 +366,12 @@ Xg_model <- train(bandgap ~., data = training,
                         metric = "RMSE")
 
 summary(Xg_model)
-Xg_model$finalModel
+Xg_model$results
 Xg_model$bestTune
 plot(Xg_model)
 
 # variáveis importantes
-plot(varImp(Xg_model))
+plot(varImp(Xg_model), top = 10)
 
 # previsão
 Xg_pred <- predict(Xg_model,holdout)
@@ -358,10 +392,10 @@ gpr_model <- caret::train(bandgap ~., data = training,
 summary(gpr_model)
 gpr_model$results
 gpr_model$finalModel
-#plot(gpr_model)
+plot(gpr_model)
 
 # variáveis importantes
-plot(varImp(gpr_model))
+plot(varImp(gpr_model), top = 10)
 
 # previsão
 gpr_pred <- predict(gpr_model,holdout)
@@ -388,57 +422,149 @@ rf_model$bestTune
 plot(rf_model)
 
 # variáveis importantes
-plot(varImp(rf_model))
+plot(varImp(rf_model), top = 10)
 
 # previsão
 rf_pred <- predict(rf_model,holdout)
 #-------------------------------------------------------------------------------
 # Avaliação dos modelos
 #-------------------------------------------------------------------------------
-pred <- list(glmStepAIC_model_pred, pls_pred, lasso_pred, gbm_pred, Xg_pred, gpr_pred,
-     rf_pred)
 
-avaliacao <- function(prediction){
-  postResample(prediction,holdout$bandgap)
+# comparação entre base de teste e base de treino
+nome_modelo <- function(modelo){
+  nome <- modelo$method
+  return(nome)
 }
 
-res = map(pred,avaliacao) %>% unnest()
+avalia <- function(modelo){
+  #nome <- as.character(modelo)
+  c_treino <- predict(modelo, training)              
+  
+  #Base de teste
+  c_teste <- predict(modelo, holdout)
+  
+  # Data frame de avaliação (Treino)
+  aval_treino <- data.frame(obs=training$bandgap, 
+                            pred=c_treino
+                            )
+  
+  # Data frame de avaliação (Teste)
+  aval_teste <- data.frame(obs=holdout$bandgap, 
+                           pred=c_teste
+                           )
+  
+  tcs_treino <- caret::defaultSummary(aval_treino, 
+                                         lev=levels(aval_treino$obs))
+  tcs_teste <- caret::defaultSummary(aval_teste, 
+                                        lev=levels(aval_teste$obs))
+  
+  
+  print('Avaliação base de treino')
+  print(tcs_treino)
+  print('Avaliação base de teste')
+  print(tcs_teste)
+  nome <- nome_modelo(modelo)
+  dados <- data.frame(#teste = tcs_teste
+    treino = tcs_treino
+  ) %>%`colnames<-`(nome) %>%
+    t() %>% as.data.frame() %>% select(RMSE, Rsquared)
+  return(dados)
+}
 
-data.frame(modelo = c('glm', 'pls', 'lasso', 'gmb', 'xb', 'gpr', 'rf'),
-           res)
+avalia_box <- function(modelo){
+  
+  c_treino <- predict(modelo, training_box)              
+  
+  #Base de teste
+  c_teste <- predict(modelo, holdout_box)
+  
+  # Data frame de avaliação (Treino)
+  aval_treino <- data.frame(obs=training_box$bandgap, 
+                            pred=c_treino
+  )
+  
+  # Data frame de avaliação (Teste)
+  aval_teste <- data.frame(obs=holdout_box$bandgap, 
+                           pred=c_teste
+  )
+  
+  tcs_treino <- caret::defaultSummary(aval_treino, 
+                                      lev=levels(aval_treino$obs))
+  tcs_teste <- caret::defaultSummary(aval_teste, 
+                                     lev=levels(aval_teste$obs))
+  
+  
+  print('Avaliação base de treino')
+  print(tcs_treino)
+  print('Avaliação base de teste')
+  print(tcs_teste)
+  nome <- nome_modelo(modelo)
+  dados <- data.frame(#teste = tcs_teste
+    treino = tcs_treino
+  ) %>%`colnames<-`(nome) %>%
+    t() %>% as.data.frame() %>% select(RMSE, Rsquared) 
+  
+  return(dados)
+}
 
-tabela <- data.frame(glm = res[1],
-           pls = res[2],
-           lasso = res[3],
-           gbm = res[4],
-           xb = res[5],
-           gpr = res[6],
-           rf = res[7]) %>% dplyr::rename(glm=1, pls=2, lasso=3, gbm=4, xb=5,
-                                          gpr=6, rf=7) %>% rownames_to_column() %>% t()
- 
-colnames(tabela) <- tabela[1,]
-tabela <- tabela[-1,]
-r_quad <- tabela %>%as.data.frame() %>% rownames_to_column('modelo') %>% 
-  ggplot(aes(x = modelo,y = Rsquared)) +
-  geom_col()
-rmse <- tabela %>%as.data.frame() %>% rownames_to_column('modelo') %>% 
-  ggplot(aes(x = modelo,y = RMSE)) +
-  geom_col()
+modelos <- list(gpr_model, glmStepAIC_model, lasso_model, lm_model,
+             pls_model, rf_model, Xg_model)
 
-rmse + r_quad + plot_layout(guides = "collect")
+gbm <- avalia(gbm_model)
+gpr <- avalia(gpr_model)
+glm_box <- avalia_box(glmStepAIC_model_box)
+lasso <- avalia(lasso_model)
+lm_box <- avalia_box(lm_model_box)
+pls <- avalia(pls_model)
+rf <- avalia(rf_model)
+Xg <- avalia(Xg_model)
 
-tabela %>%as.data.frame() %>% rownames_to_column('modelo') %>% kable() %>%
-  kable_styling(bootstrap_options = "striped",
-                full_width = F,
-                font_size = 28)
+aval_regre <- purrr::reduce(list(gpr,glm_box,lasso,lm_box,pls,rf,Xg,gbm), 
+                           rbind) %>% rownames_to_column(var = 'Modelo') %>%
+  mutate(Modelo = ifelse(Modelo == "gaussprLinear", "GPR", 
+                         ifelse(Modelo == 'glmStepAIC', 'GLM', 
+                                ifelse(Modelo == 'xgbTree', 'XgBoost',Modelo)))) %>%
+  mutate_at(c('Modelo'), toupper)
 
-# escrever a equação final bonitinha
-library(equatiomatic)
-extract_eq(modelo_linear_step, use_coefs = T) %>%
-  kable() %>%
-  kable_styling(bootstrap_options = "striped",
-                full_width = F,
-                font_size = 28)
+# rais do erro quadrático médio na base de teste
+rmse <-  ggplot(data = aval_regre, aes(x = reorder(Modelo, -RMSE),
+                                       y = RMSE, fill = Modelo))+
+  geom_col() +
+  geom_text(aes(label = round(RMSE,3)), vjust = 1.5, colour = "white")+
+  labs(x = 'Modelo', y = 'RMSE', title = 'Raiz do Erro Quadrático Médio na Base de Teste')+
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA),
+        legend.position="none")
+# r-quadrado na base de teste
+ggplot(data = aval_regre, aes(x = reorder(Modelo, -Rsquared), y = Rsquared, fill = Modelo))+
+  geom_col() +
+  geom_text(aes(label = round(Rsquared,3)), vjust = 1.5, colour = "white")+
+  labs(x = 'Modelo', y = 'R-quadrado')+
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA),
+        legend.position="none")
+
+# GBM apresentou melhor RMSE para a regressão do bandgap  
+
+# variáveis importantes do GBM
+library('ggpmisc')
+var_gbm <- ggplot(varImp(gbm_model, scale = F), top = 5  )+
+  labs(x = 'Variável', y = 'Importância', title ='GBM') + 
+  annotate(geom = "table", x = 0, y = 40, label = list(gbm_model$bestTune))
+  theme(panel.background = element_rect("white"),
+        panel.grid = element_line("grey95"),
+        panel.border = element_rect(NA)
+        #plot.title = element_text(hjust = 0.5)
+  )
+
+# Put the figure and table together:
+final_figure <- cowplot::plot_grid(rmse,var_gbm, labels = c('a)', 'b)'),
+                                   ncol = 2,
+                                   rel_heights = c(1, 1))
+
+
 
 
 
